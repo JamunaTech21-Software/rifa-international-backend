@@ -22,6 +22,25 @@ final class AdminApplicationController
         return Response::data($result['data'], 200, $result['meta']);
     }
 
+    /** GET /admin/applications/export — CSV of the current filters (UTF-8 with BOM for Excel). */
+    public function export(Request $request): Response
+    {
+        $csv = $this->applications->export($request->query(), $request->attribute('admin'), $request->ip());
+
+        return Response::stream(static function () use ($csv): void {
+            $out = fopen('php://output', 'wb');
+            fwrite($out, "\xEF\xBB\xBF");
+            fputcsv($out, $csv['header'], ',', '"', '');
+            foreach ($csv['rows'] as $row) {
+                fputcsv($out, $row, ',', '"', '');
+            }
+            fclose($out);
+        }, [
+            'Content-Type' => 'text/csv; charset=utf-8',
+            'Content-Disposition' => 'attachment; filename="' . $csv['filename'] . '"',
+        ]);
+    }
+
     public function show(Request $request): Response
     {
         return Response::data($this->applications->detail($this->id($request), $request->attribute('admin')));
