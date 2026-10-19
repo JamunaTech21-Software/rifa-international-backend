@@ -12,6 +12,9 @@ use App\Core\Request;
 use App\Core\Response;
 use App\Core\Session;
 use App\Shared\Clock;
+use App\Shared\Mail\Mailer;
+use App\Shared\Storage\DocumentStorage;
+use Tests\Support\FakeDocumentStorage;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -27,12 +30,16 @@ abstract class IntegrationTestCase extends TestCase
 
     protected Database $db;
 
+    protected FakeDocumentStorage $storage;
+
     protected function setUp(): void
     {
         parent::setUp();
         $basePath = dirname(__DIR__, 2);
         $this->app = Kernel::create($basePath);
         $this->db = $this->app->container()->get(Database::class);
+        $this->storage = new FakeDocumentStorage();
+        $this->app->container()->instance(DocumentStorage::class, $this->storage);
 
         if (!self::$migrated) {
             $migrator = new Migrator($this->db, $basePath . '/database/migrations');
@@ -62,10 +69,16 @@ abstract class IntegrationTestCase extends TestCase
             $raw = (string) json_encode($body);
         }
 
+        $query = [];
+        if (str_contains($path, '?')) {
+            [$path, $queryString] = explode('?', $path, 2);
+            parse_str($queryString, $query);
+        }
+
         return $this->app->handle(new Request(
             $method,
             $path,
-            [],
+            $query,
             $files === [] ? [] : $body,
             $files,
             $headers,
@@ -77,6 +90,11 @@ abstract class IntegrationTestCase extends TestCase
     protected function session(): Session
     {
         return $this->app->container()->get(Session::class);
+    }
+
+    protected function mailer(): Mailer
+    {
+        return $this->app->container()->get(Mailer::class);
     }
 
     protected function clock(): Clock
@@ -98,6 +116,7 @@ abstract class IntegrationTestCase extends TestCase
     protected function loginAs(int $adminId): void
     {
         $this->session()->set('admin_id', $adminId);
+        $this->session()->set('session_version', (int) $this->db->fetchValue('SELECT session_version FROM admins WHERE id = ?', [$adminId]));
         $this->session()->set('last_activity', $this->clock()->now()->getTimestamp());
     }
 }

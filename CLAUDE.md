@@ -77,7 +77,9 @@ return static function (Router $router): void {
 | `role:{role}[,{role}]` | after `auth`; 403 otherwise |
 | `csrf` | non-GET admin requests need header `X-CSRF-Token` (token from `CsrfTokenManager::token()`) |
 
-Session keys written at login (BE-11): `admin_id` (int), `last_activity` (unix ts); call `Session::regenerate()` on login.
+Session keys written at login (BE-11): `admin_id` (int), `session_version` (int, must equal `admins.session_version`), `last_activity` (unix ts).
+Bumping `admins.session_version` (password change/reset) logs out all other sessions of that admin.
+Audit admin actions with `App\Shared\Audit\AuditLogger::log($adminId, 'applications.status_changed', 'application', $id, $request->ip(), [...])`.
 
 ## Validation
 

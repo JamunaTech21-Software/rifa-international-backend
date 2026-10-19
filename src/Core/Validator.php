@@ -208,7 +208,8 @@ final class Validator
             $key = 'file.too_large';
         }
 
-        $message = $this->messages["{$field}.{$rule}"]
+        $message = ($key === 'file.too_large' ? $this->messages["{$field}.max_kb"] ?? null : null)
+            ?? $this->messages["{$field}.{$rule}"]
             ?? $this->messages[$field]
             ?? self::DEFAULT_MESSAGES[$key];
 

@@ -32,6 +32,12 @@ final class Clock
         return $this->now()->setTime(0, 0);
     }
 
+    /** DB datetime ('Y-m-d H:i:s', stored in app time) → ISO-8601 with offset, e.g. 2026-10-15T10:32:00+06:00. */
+    public function toIso(?string $datetime): ?string
+    {
+        return $datetime === null ? null : (new DateTimeImmutable($datetime, $this->timezone))->format(DATE_ATOM);
+    }
+
     public function timezone(): DateTimeZone
     {
         return $this->timezone;

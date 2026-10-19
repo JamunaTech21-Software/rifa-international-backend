@@ -10,6 +10,9 @@ use App\Core\Middleware\JsonBody;
 use App\Core\Middleware\RateLimit;
 use App\Core\Middleware\Role;
 use App\Shared\Clock;
+use App\Shared\Mail\Mailer;
+use App\Shared\Storage\CloudinaryService;
+use App\Shared\Storage\DocumentStorage;
 use Dotenv\Dotenv;
 use ErrorException;
 
@@ -73,6 +76,18 @@ final class Kernel
         $container->singleton(Clock::class, fn () => new Clock((string) $config->get('app.timezone', 'Asia/Dhaka')));
 
         $container->singleton(Session::class, fn () => new Session($config->get('security.session', [])));
+
+        $container->singleton(DocumentStorage::class, fn (Container $c) => new CloudinaryService(
+            $config->get('cloudinary'),
+            $c->get(Clock::class),
+        ));
+
+        $container->singleton(Mailer::class, fn (Container $c) => new Mailer(
+            $config->get('mail'),
+            $config->get('app.base_path') . '/templates/emails',
+            $c->get(Logger::class),
+            $config->get('app.env') === 'testing' ? sys_get_temp_dir() . '/rifa-test-mail' : null,
+        ));
     }
 
     /** Turn PHP warnings/notices into exceptions so they are handled and logged. */
