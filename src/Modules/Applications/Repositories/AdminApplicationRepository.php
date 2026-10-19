@@ -43,6 +43,25 @@ final class AdminApplicationRepository
         return ['rows' => $rows, 'total' => $total];
     }
 
+    /**
+     * Every matching row for the CSV export (same filters as search, no paging).
+     *
+     * @param array<string, ?string> $filters
+     * @return list<array<string, mixed>>
+     */
+    public function exportRows(array $filters): array
+    {
+        [$where, $params] = $this->where($filters);
+        $order = self::SORTS[$filters['sort'] ?? '-created_at'] ?? self::SORTS['-created_at'];
+
+        return $this->db->fetchAll(
+            "SELECT a.*, c.name AS category_name
+               FROM applications a JOIN job_categories c ON c.id = a.job_category_id
+              WHERE {$where} ORDER BY {$order}",
+            $params,
+        );
+    }
+
     /** @return array<string, mixed>|null */
     public function find(int $id): ?array
     {

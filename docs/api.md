@@ -297,6 +297,82 @@ Rules: forward moves may skip steps; `on_hold`/`rejected` from any open status; 
 
 Super admin only (`403` for staff). Soft delete → `204`; the application disappears from lists and detail.
 
+## Admin — messages inbox (implemented)
+
+### GET /admin/messages
+
+Query: `q` (name, email, phone, message text), `status` (`new` | `read` | `replied` | `archived`; **default: everything except archived**),
+`subject`, `page`, `per_page` (max 100). Newest first.
+
+```json
+{
+  "data": [{
+    "id": 42, "full_name": "Md. Rahim Uddin", "email": "rahim@example.com", "phone": "01712345678",
+    "subject": "general_inquiry", "subject_label": "General Inquiry",
+    "excerpt": "Hello, I want to know about construction jobs in Johor.",
+    "status": "new", "status_label": "New", "replies_count": 0,
+    "read_at": null, "created_at": "2026-10-19T09:00:00+06:00"
+  }],
+  "meta": { "page": 1, "per_page": 20, "total": 3, "unread_count": 2 }
+}
+```
+
+Use `meta.unread_count` for the sidebar badge.
+
+### GET /admin/messages/{id}
+
+List fields plus `message` (full text) and `replies` (oldest first):
+`{ id, body, admin: {id, name}, sent_to, delivery_status: "sent" | "failed", sent_at, created_at }`.
+Opening a `new` message marks it `read`.
+
+### PATCH /admin/messages/{id}
+
+`{ "status": "new" | "read" | "archived" }` (`new` = mark unread) → `200` detail.
+
+### POST /admin/messages/{id}/replies
+
+`{ "body": "≤ 5000 chars" }` → `201` detail. The reply is emailed to the sender (Reply-To: office inbox) and saved.
+If sending fails the reply is saved with `delivery_status: "failed"` and the status does not change — show a warning and let the admin retry.
+On success the status becomes `replied`.
+
+## Admin — dashboard, export, users (implemented)
+
+### GET /admin/dashboard
+
+```json
+{
+  "data": {
+    "applications": { "today": 3, "this_week": 14, "total": 230 },
+    "messages": { "unread": 2, "open": 9 },
+    "by_status": [{ "status": "received", "label": "Received", "count": 40 }, "… all 9 statuses, zeros included"],
+    "by_category": [{ "slug": "construction", "name": "Construction", "count": 88 }, "… all active categories"],
+    "latest_applications": [{ "id": 12, "reference_no": "RIFA-…", "full_name": "…", "category_name": "Construction", "status": "received", "status_label": "Received", "created_at": "…" }],
+    "latest_messages": [{ "id": 42, "full_name": "…", "subject_label": "Support", "status": "new", "created_at": "…" }]
+  }
+}
+```
+
+"This week" starts on Sunday (office week). Latest lists have up to 5 items; archived messages are excluded.
+
+### GET /admin/applications/export
+
+Same query filters as the list (no paging) → `text/csv` download named `rifa-applications-YYYYMMDD-HHMM.csv`,
+UTF-8 with BOM (opens correctly in Excel). Columns: Reference, Submitted (GMT+6), Full name, Father's name,
+Date of birth, Age, Gender, NID, Mobile, Email, Present address, Category, Work experience, Education,
+Passport status, Status, Over 45, Possible duplicate. Trigger it with a normal link/`window.location`
+(the session cookie is sent automatically). Every export is audit-logged.
+
+### Admin users (super admin only — staff get 403)
+
+| Method | Endpoint | Body | Result |
+|---|---|---|---|
+| GET | `/admin/users` | — | `{ data: [{ id, name, email, role, is_active, is_locked, last_login_at, created_at }] }` |
+| POST | `/admin/users` | `{ name, email, role: "super_admin" \| "staff", password }` | `201` user · 422 "An admin with this email already exists." |
+| PATCH | `/admin/users/{id}` | any of `{ name, role, is_active, password }` | `200` user |
+
+Rules (422 messages): "You cannot deactivate your own account." · "Use \"Change password\" to change your own password." ·
+"There must be at least one active super admin." Setting a password or deactivating a user logs them out everywhere.
+
 ## Admin endpoints (summary — remaining ones are detailed as they are built)
 
 Session cookie auth (`credentials: 'same-origin'`). Every non-GET request must send

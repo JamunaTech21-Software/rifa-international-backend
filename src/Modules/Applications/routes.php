@@ -11,6 +11,7 @@ return static function (Router $router): void {
 
     $router->group('/admin/applications', ['auth', 'csrf'], function (Router $router): void {
         $router->get('', [AdminApplicationController::class, 'index']);
+        $router->get('/export', [AdminApplicationController::class, 'export']);
         $router->get('/{id:\d+}', [AdminApplicationController::class, 'show']);
         $router->patch('/{id:\d+}/status', [AdminApplicationController::class, 'updateStatus']);
         $router->post('/{id:\d+}/notes', [AdminApplicationController::class, 'storeNote']);
