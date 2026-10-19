@@ -60,7 +60,7 @@ final class PasswordResetService
 
         $this->mailer->send($admin['email'], 'Reset your RIFA admin password', 'password-reset', [
             'name' => $admin['name'],
-            'resetUrl' => rtrim((string) $this->config->get('app.url'), '/') . '/admin/reset-password?token=' . $token,
+            'resetUrl' => $this->config->get('app.admin_url') . '/reset-password?token=' . $token,
             'minutes' => $minutes,
         ]);
 

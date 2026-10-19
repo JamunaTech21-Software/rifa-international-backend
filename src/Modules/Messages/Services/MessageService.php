@@ -70,7 +70,7 @@ final class MessageService
                 'phone' => $record['phone'],
                 'message' => $record['message'],
                 'receivedAt' => $now->format('j F Y, g:i A') . ' (GMT+6)',
-                'adminUrl' => rtrim((string) $this->config->get('app.url'), '/') . '/admin/messages/' . $id,
+                'adminUrl' => $this->config->get('app.admin_url') . '/messages/' . $id,
             ],
             $record['email'],
         );

@@ -190,6 +190,9 @@ final class ApplicationSubmitTest extends IntegrationTestCase
             $this->db->fetchAll('SELECT mobile FROM applications'), 'mobile',
         ))));
         $this->assertSame('মোঃ রহিম উদ্দিন', $this->db->fetchValue('SELECT full_name FROM applications LIMIT 1'));
+
+        $curly = $this->submit($this->validFields(['full_name' => 'Md. Rahim O’Neil', 'mobile' => '01812345678', 'nid_no' => '']), $this->validFiles(), '10.0.1.1');
+        $this->assertSame(201, $curly->status(), 'curly apostrophe allowed, like the frontend');
     }
 
     public function test_wrong_file_type_and_oversized_files(): void

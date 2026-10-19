@@ -124,10 +124,13 @@ final class Router
         throw new NotFoundException('The requested endpoint does not exist.');
     }
 
-    /** @return list<array{method: string, path: string}> */
+    /** @return list<array{method: string, path: string, middleware: list<string>}> */
     public function routes(): array
     {
-        return array_map(fn (array $r) => ['method' => $r['method'], 'path' => $r['path']], $this->routes);
+        return array_map(
+            fn (array $r) => ['method' => $r['method'], 'path' => $r['path'], 'middleware' => $r['middleware']],
+            $this->routes,
+        );
     }
 
     /** @return array{0: string, 1: list<string>} */

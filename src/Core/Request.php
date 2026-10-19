@@ -23,6 +23,8 @@ final class Request
 
     private bool $invalidJson = false;
 
+    private bool $bodyTooLarge = false;
+
     /**
      * @param array<string, mixed>        $query
      * @param array<string, mixed>        $body   form fields ($_POST)
@@ -76,7 +78,7 @@ final class Request
 
         $path = rawurldecode((string) parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH));
 
-        return new self(
+        $request = new self(
             strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET'),
             $path,
             $_GET,
@@ -86,6 +88,36 @@ final class Request
             $_SERVER,
             (string) file_get_contents('php://input'),
         );
+
+        // When a body exceeds post_max_size PHP drops all fields and files without an error.
+        $length = (int) ($_SERVER['CONTENT_LENGTH'] ?? 0);
+        $limit = self::iniBytes((string) ini_get('post_max_size'));
+        $request->bodyTooLarge = $limit > 0 && $length > $limit && $_POST === [] && $_FILES === [];
+
+        return $request;
+    }
+
+    public function isBodyTooLarge(): bool
+    {
+        return $this->bodyTooLarge;
+    }
+
+    /** Test helper: simulate a body that exceeded post_max_size. */
+    public function markBodyTooLarge(): void
+    {
+        $this->bodyTooLarge = true;
+    }
+
+    private static function iniBytes(string $value): int
+    {
+        $number = (int) $value;
+
+        return match (strtolower(substr(trim($value), -1))) {
+            'g' => $number * 1024 ** 3,
+            'm' => $number * 1024 ** 2,
+            'k' => $number * 1024,
+            default => $number,
+        };
     }
 
     public function method(): string
@@ -145,9 +177,10 @@ final class Request
         return $this->invalidJson;
     }
 
+    /** Visitor IP: the trusted-proxy forwarded IP when present (see Middleware\TrustedProxy), else REMOTE_ADDR. */
     public function ip(): string
     {
-        return (string) ($this->server['REMOTE_ADDR'] ?? '0.0.0.0');
+        return (string) ($this->attributes['client_ip'] ?? $this->server['REMOTE_ADDR'] ?? '0.0.0.0');
     }
 
     public function userAgent(): string

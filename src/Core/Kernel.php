@@ -9,6 +9,7 @@ use App\Core\Middleware\Csrf;
 use App\Core\Middleware\JsonBody;
 use App\Core\Middleware\RateLimit;
 use App\Core\Middleware\Role;
+use App\Core\Middleware\TrustedProxy;
 use App\Shared\Clock;
 use App\Shared\Mail\Mailer;
 use App\Shared\Storage\CloudinaryService;
@@ -23,6 +24,7 @@ use ErrorException;
 final class Kernel
 {
     public const MIDDLEWARE = [
+        'proxy' => TrustedProxy::class,
         'json' => JsonBody::class,
         'throttle' => RateLimit::class,
         'auth' => Auth::class,
@@ -43,18 +45,33 @@ final class Kernel
         if ($config->get('app.env') !== 'testing') {
             self::registerErrorHandler(); // PHPUnit installs its own handler
         }
+        if (ConfigCheck::isStrict($config)) {
+            // Never print PHP errors to visitors; keep them in a log file instead.
+            ini_set('display_errors', '0');
+            ini_set('log_errors', '1');
+            ini_set('error_log', $basePath . '/storage/logs/php-errors.log');
+        }
 
         $container = new Container();
         self::registerServices($container, $config);
 
         $router = new Router();
-        $router->group((string) $config->get('app.api_prefix', '/api/v1'), ['json'], function (Router $router) use ($basePath): void {
+        $router->group((string) $config->get('app.api_prefix', '/api/v1'), ['proxy', 'json'], function (Router $router) use ($basePath): void {
             foreach (glob($basePath . '/src/Modules/*/routes.php') ?: [] as $file) {
                 (require $file)($router);
             }
         });
 
-        return new App($container, $router, $container->get(ErrorHandler::class), self::MIDDLEWARE);
+        $strict = ConfigCheck::isStrict($config);
+
+        return new App(
+            $container,
+            $router,
+            $container->get(ErrorHandler::class),
+            self::MIDDLEWARE,
+            $strict ? ConfigCheck::run($config)['errors'] : [],
+            $strict,
+        );
     }
 
     private static function registerServices(Container $container, Config $config): void
@@ -75,7 +92,10 @@ final class Kernel
 
         $container->singleton(Clock::class, fn () => new Clock((string) $config->get('app.timezone', 'Asia/Dhaka')));
 
-        $container->singleton(Session::class, fn () => new Session($config->get('security.session', [])));
+        $container->singleton(Session::class, fn () => new Session($config->get('security.session', []) + [
+            // Own session folder: on shared hosting the default /tmp may be shared with other sites.
+            'save_path' => $config->get('app.base_path') . '/storage/sessions',
+        ]));
 
         $container->singleton(DocumentStorage::class, fn (Container $c) => new CloudinaryService(
             $config->get('cloudinary'),

@@ -16,7 +16,7 @@ final class Session
     private bool $started = false;
 
     /**
-     * @param array{name?: string, secure?: bool, samesite?: string} $config
+     * @param array{name?: string, secure?: bool, samesite?: string, idle_minutes?: int, save_path?: string} $config
      */
     public function __construct(
         private readonly array $config = [],
@@ -35,6 +35,11 @@ final class Session
             return;
         }
 
+        $savePath = $this->config['save_path'] ?? null;
+        if (is_string($savePath) && (is_dir($savePath) || @mkdir($savePath, 0700, true)) && is_writable($savePath)) {
+            session_save_path($savePath);
+        }
+        ini_set('session.gc_maxlifetime', (string) ((int) ($this->config['idle_minutes'] ?? 60) * 60));
         session_name($this->config['name'] ?? 'rifa_session');
         session_set_cookie_params([
             'lifetime' => 0,

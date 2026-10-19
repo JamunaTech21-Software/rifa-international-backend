@@ -62,7 +62,7 @@ final class ApplicationNotifier
                 'education' => $this->lookups->label('education_levels', $application['education_level']),
                 'ageFlagged' => (bool) $application['is_age_flagged'],
                 'duplicateFlagged' => (bool) $application['is_duplicate_flagged'],
-                'adminUrl' => rtrim((string) $this->config->get('app.url'), '/') . '/admin/applications/' . $applicationId,
+                'adminUrl' => $this->config->get('app.admin_url') . '/applications/' . $applicationId,
             ],
             $application['email'] ?: null,
         );
