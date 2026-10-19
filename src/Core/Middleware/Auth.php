@@ -16,7 +16,8 @@ use App\Shared\Clock;
  * Alias: auth. Requires a logged-in, active admin and enforces the idle timeout.
  * Sets request attribute 'admin' => ['id', 'name', 'email', 'role'].
  *
- * Session keys (written by the Auth module on login): admin_id, last_activity.
+ * Session keys (written by the Auth module on login): admin_id, session_version, last_activity.
+ * A password change/reset bumps admins.session_version, which logs out every older session.
  */
 final class Auth implements Middleware
 {
@@ -44,15 +45,16 @@ final class Auth implements Middleware
         }
 
         $admin = $this->db->fetchOne(
-            'SELECT id, name, email, role FROM admins WHERE id = ? AND is_active = 1',
+            'SELECT id, name, email, role, session_version FROM admins WHERE id = ? AND is_active = 1',
             [$adminId],
         );
-        if ($admin === null) {
+        if ($admin === null || $admin['session_version'] !== $this->session->get('session_version')) {
             $this->session->destroy();
             throw new UnauthenticatedException();
         }
 
         $this->session->set('last_activity', $now);
+        unset($admin['session_version']);
         $request->setAttribute('admin', $admin);
 
         return $next($request);
