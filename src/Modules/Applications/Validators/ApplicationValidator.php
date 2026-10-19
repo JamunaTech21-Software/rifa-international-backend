@@ -15,7 +15,8 @@ use App\Modules\Lookups\Services\LookupsService;
  */
 final class ApplicationValidator
 {
-    public const NAME_PATTERN = "/^[\\p{L}\\p{M}\\s.'\\-]+$/u";
+    // Letters (any script, incl. Bangla), spaces, dot, hyphen, straight and curly apostrophes — same as the frontend.
+    public const NAME_PATTERN = "/^[\\p{L}\\p{M}\\s.'\\x{2019}\\-]+$/u";
 
     public const MOBILE_PATTERN = '/^(?:\+?88)?01[3-9]\d{8}$/';
 

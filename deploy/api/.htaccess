@@ -1,0 +1,42 @@
+# RIFA API document root (cPanel / Apache). Only index.php is served; everything goes through it.
+Options -Indexes -MultiViews
+ServerSignature Off
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Force HTTPS
+    RewriteCond %{HTTPS} !=on
+    RewriteCond %{HTTP:X-Forwarded-Proto} !=https
+    RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [R=301,L]
+
+    # Never serve hidden files (.env, .git, .user.ini …)
+    RewriteRule (^|/)\. - [F,L]
+
+    # Everything else → index.php
+    RewriteCond %{REQUEST_URI} !^/index\.php$
+    RewriteRule ^ index.php [QSA,L]
+</IfModule>
+
+<FilesMatch "^\.">
+    Require all denied
+</FilesMatch>
+
+<IfModule mod_headers.c>
+    Header always unset X-Powered-By
+</IfModule>
+
+# Two files of 5 MB plus form fields. (php-fpm hosts read .user.ini instead — both files are provided.)
+<IfModule mod_php.c>
+    php_value upload_max_filesize 6M
+    php_value post_max_size 13M
+    php_value max_file_uploads 5
+    php_flag display_errors Off
+    php_flag expose_php Off
+</IfModule>
+<IfModule lsapi_module>
+    php_value upload_max_filesize 6M
+    php_value post_max_size 13M
+    php_value max_file_uploads 5
+    php_flag display_errors Off
+</IfModule>

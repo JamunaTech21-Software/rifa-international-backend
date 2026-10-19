@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Core;
 
+use App\Core\Exceptions\HttpException;
 use App\Core\Middleware\Middleware;
 use Closure;
 use RuntimeException;
@@ -15,14 +16,27 @@ use Throwable;
  */
 final class App
 {
+    /** Sent on every API response (JSON only — nothing here is ever rendered as a page). */
+    private const SECURITY_HEADERS = [
+        'X-Content-Type-Options' => 'nosniff',
+        'X-Frame-Options' => 'DENY',
+        'Content-Security-Policy' => "default-src 'none'; frame-ancestors 'none'",
+        'Referrer-Policy' => 'no-referrer',
+        'Permissions-Policy' => 'camera=(), microphone=(), geolocation=()',
+        'Cross-Origin-Resource-Policy' => 'same-origin',
+    ];
+
     /**
      * @param array<string, class-string<Middleware>> $middlewareAliases e.g. ['auth' => Auth::class]
+     * @param list<string>                            $bootErrors        ConfigCheck errors (staging/production)
      */
     public function __construct(
         private readonly Container $container,
         private readonly Router $router,
         private readonly ErrorHandler $errors,
         private readonly array $middlewareAliases = [],
+        private readonly array $bootErrors = [],
+        private readonly bool $hsts = false,
     ) {
     }
 
@@ -47,6 +61,11 @@ final class App
         $request->setAttribute('request_id', $requestId);
 
         try {
+            if ($this->bootErrors !== []) {
+                $this->container->get(Logger::class)->error('Refusing request: server misconfigured', ['problems' => $this->bootErrors]);
+                throw new HttpException(503, 'server_misconfigured', 'The service is temporarily unavailable. Please try again later.');
+            }
+
             [$route, $params] = $this->router->match($request->method(), $request->path());
             $request->setAttribute('params', $params);
 
@@ -56,7 +75,12 @@ final class App
         }
 
         $response->withHeader('X-Request-Id', $requestId);
-        $response->withHeader('X-Content-Type-Options', 'nosniff');
+        foreach (self::SECURITY_HEADERS as $name => $value) {
+            $response->withHeader($name, $value);
+        }
+        if ($this->hsts) {
+            $response->withHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+        }
         if ($response->header('Cache-Control') === null) {
             $response->withHeader('Cache-Control', 'no-store');
         }

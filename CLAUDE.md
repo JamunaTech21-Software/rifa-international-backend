@@ -20,6 +20,14 @@ Target runtime is **PHP 8.3** (cPanel). Local PHP may be newer: do not use 8.4+ 
 Composer is pinned with `config.platform.php = 8.3.0`. Check with:
 `docker run --rm -v "$PWD":/app -w /app php:8.3-cli php vendor/bin/phpunit --testsuite Unit`
 
+## Production
+
+- Deployment: `DEPLOY.md` (cPanel) and `docs/vercel-proxy.md` (Vercel frontends → API). Entry files: `deploy/api/`.
+- `ConfigCheck` blocks the API with `503 server_misconfigured` on staging/production while settings are unsafe;
+  run `php bin/check-config.php` after any `.env` change. Daily cron: `bin/cleanup.php`.
+- Security tests in `tests/Integration/SecurityHardeningTest.php` fail if an admin route is added without
+  `auth` + `csrf`, if security headers disappear, or if personal data reaches the logs. Keep them green.
+
 ## Layout
 
 ```
