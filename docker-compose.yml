@@ -1,0 +1,28 @@
+# Local development database only (production uses cPanel MySQL).
+# Start: docker compose up -d   ·   Stop: docker compose down
+name: rifa
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: rifa-mysql
+    environment:
+      MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
+      MYSQL_ROOT_HOST: "%"
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-time-zone=+06:00
+    ports:
+      - "127.0.0.1:3307:3306"
+    volumes:
+      - rifa_mysql:/var/lib/mysql
+      - ./docker/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  rifa_mysql:
