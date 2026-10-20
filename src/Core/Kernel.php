@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Core;
 
 use App\Core\Middleware\Auth;
+use App\Core\Middleware\Captcha;
 use App\Core\Middleware\Csrf;
 use App\Core\Middleware\JsonBody;
 use App\Core\Middleware\RateLimit;
@@ -12,8 +13,11 @@ use App\Core\Middleware\Role;
 use App\Core\Middleware\TrustedProxy;
 use App\Shared\Clock;
 use App\Shared\Mail\Mailer;
+use App\Shared\Security\CaptchaVerifier;
+use App\Shared\Security\TurnstileVerifier;
 use App\Shared\Storage\CloudinaryService;
 use App\Shared\Storage\DocumentStorage;
+use App\Shared\Storage\ImageStorage;
 use Dotenv\Dotenv;
 use ErrorException;
 
@@ -30,6 +34,7 @@ final class Kernel
         'auth' => Auth::class,
         'role' => Role::class,
         'csrf' => Csrf::class,
+        'captcha' => Captcha::class,
     ];
 
     public static function create(string $basePath): App
@@ -97,16 +102,23 @@ final class Kernel
             'save_path' => $config->get('app.base_path') . '/storage/sessions',
         ]));
 
-        $container->singleton(DocumentStorage::class, fn (Container $c) => new CloudinaryService(
+        $container->singleton(CloudinaryService::class, fn (Container $c) => new CloudinaryService(
             $config->get('cloudinary'),
             $c->get(Clock::class),
         ));
+        $container->singleton(DocumentStorage::class, fn (Container $c) => $c->get(CloudinaryService::class));
+        $container->singleton(ImageStorage::class, fn (Container $c) => $c->get(CloudinaryService::class));
 
         $container->singleton(Mailer::class, fn (Container $c) => new Mailer(
             $config->get('mail'),
             $config->get('app.base_path') . '/templates/emails',
             $c->get(Logger::class),
             $config->get('app.env') === 'testing' ? sys_get_temp_dir() . '/rifa-test-mail' : null,
+        ));
+
+        $container->singleton(CaptchaVerifier::class, fn (Container $c) => new TurnstileVerifier(
+            $config->get('security.captcha', []),
+            $c->get(Logger::class),
         ));
     }
 

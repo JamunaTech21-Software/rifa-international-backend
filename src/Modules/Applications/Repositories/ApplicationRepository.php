@@ -70,4 +70,28 @@ final class ApplicationRepository
             'changed_by' => $adminId,
         ]);
     }
+
+    /**
+     * Public status lookup (P5-04): both values must match a live application.
+     *
+     * @return array{id: int, reference_no: string, status: string, created_at: string, job_category: string}|null
+     */
+    public function findForStatusLookup(string $referenceNo, string $mobile): ?array
+    {
+        return $this->db->fetchOne(
+            'SELECT a.id, a.reference_no, a.status, a.created_at, c.name AS job_category
+             FROM applications a JOIN job_categories c ON c.id = a.job_category_id
+             WHERE a.reference_no = ? AND a.mobile = ? AND a.deleted_at IS NULL',
+            [$referenceNo, $mobile],
+        );
+    }
+
+    /** @return list<array{to_status: string, created_at: string}> oldest first; notes are internal and not selected */
+    public function statusTimeline(int $applicationId): array
+    {
+        return $this->db->fetchAll(
+            'SELECT to_status, created_at FROM application_status_history WHERE application_id = ? ORDER BY created_at, id',
+            [$applicationId],
+        );
+    }
 }

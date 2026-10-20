@@ -15,6 +15,13 @@ return [
         'secret_header' => 'X-Rifa-Proxy-Secret',
         'client_ip_header' => 'X-Rifa-Client-Ip',
     ],
+    // Cloudflare Turnstile on the public forms (P5-06); see Core\Middleware\Captcha.
+    // Turn on only after the frontend shows the widget, or every submission is rejected.
+    'captcha' => [
+        'enabled' => (bool) env('CAPTCHA_ENABLED', false),
+        'secret' => (string) env('TURNSTILE_SECRET_KEY', ''),
+        'timeout' => 5,
+    ],
     'login' => [
         'max_attempts' => 5,
         'lockout_minutes' => 15,

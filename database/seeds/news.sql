@@ -1,0 +1,11 @@
+-- The 3 starting News & Updates articles (same as the frontend's src/data/news.js — placeholder copy
+-- until the client sends real articles; edit or unpublish them in the admin panel).
+-- Only fills an EMPTY news_posts table, so re-running never brings back deleted posts or overwrites edits.
+INSERT INTO news_posts (slug, title, excerpt, body, published_on)
+SELECT v.slug, v.title, v.excerpt, v.body, v.published_on
+FROM (
+    SELECT 'new-job-openings-in-malaysia' AS slug, 'New Job Openings in Malaysia' AS title, 'Fresh opportunities are now open in construction, manufacturing and hospitality.' AS excerpt, CONCAT('Rifa International (RL-693) has new job openings in Malaysia across construction, factory and manufacturing, plantation, hospitality, cleaning and logistics.', CHAR(10), CHAR(10), 'Interested candidates can browse the latest jobs on our Malaysia Jobs page and apply online. Our team will review every application and contact shortlisted candidates about the next steps.', CHAR(10), CHAR(10), 'Please remember that we do not charge any fee for online applications.') AS body, '2026-10-12' AS published_on
+    UNION ALL SELECT 'beware-of-fraud-agents', 'Beware of Fraud Agents', 'We never charge for online applications. Contact us only through our official numbers.', CONCAT('We have learned that some people may be using the name of recruiting agencies to ask workers for money. Rifa International (RL-693) does not charge any fee for online application.', CHAR(10), CHAR(10), 'Always confirm any offer through our official phone numbers, WhatsApp and email listed on the Contact Us page. If you are unsure, call our office before you share documents or make any payment.'), '2026-09-28'
+    UNION ALL SELECT 'how-to-prepare-your-documents', 'How to Prepare Your Documents', 'A simple checklist to help you get ready before you apply.', CONCAT('Having your documents ready makes the process faster. You will need a valid passport with at least 18 months before it expires, a copy of your NID, a recent passport-size photo and your educational certificate if it applies.', CHAR(10), CHAR(10), 'If you do not have a passport yet, you can still apply and tell us that you will apply for one soon. Our team will guide you on the next steps.'), '2026-09-10'
+) AS v
+WHERE NOT EXISTS (SELECT 1 FROM news_posts);
