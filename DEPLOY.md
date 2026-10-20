@@ -95,6 +95,7 @@ Follow `docs/vercel-proxy.md` for both Vercel projects (env vars + `middleware.j
 2. Upload the changed files to `~/rifa_backend` (never overwrite `.env`).
 3. `composer install --no-dev --optimize-autoloader` if `composer.lock` changed.
 4. `php database/migrate.php` (only runs new migrations).
+   Then `php database/seed.php` — safe to re-run; it only fills empty tables (e.g. the starting job listings).
 5. `php bin/check-config.php`, then the smoke test.
 
 Keep a copy of the previous `~/rifa_backend` (e.g. `rifa_backend_prev`) until the new version is verified;

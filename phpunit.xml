@@ -24,6 +24,9 @@
         <env name="APP_DEBUG" value="false" force="true"/>
         <env name="DB_DATABASE" value="rifa_test" force="true"/>
         <env name="MAIL_DRIVER" value="log" force="true"/>
+        <env name="CAPTCHA_ENABLED" value="false" force="true"/>
+        <env name="MAIL_FROM_ADDRESS" value="info@rifaint.com" force="true"/>
+        <env name="MAIL_OFFICE_TO" value="info@rifaint.com" force="true"/>
         <env name="LOG_LEVEL" value="error" force="true"/>
     </php>
 </phpunit>

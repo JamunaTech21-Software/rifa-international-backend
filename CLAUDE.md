@@ -84,6 +84,7 @@ return static function (Router $router): void {
 | `auth` | logged-in active admin; idle timeout; sets `$request->attribute('admin')` = id, name, email, role |
 | `role:{role}[,{role}]` | after `auth`; 403 otherwise |
 | `csrf` | non-GET admin requests need header `X-CSRF-Token` (token from `CsrfTokenManager::token()`) |
+| `captcha` | public forms: Turnstile token in `captcha_token` (422 otherwise); no-op while `CAPTCHA_ENABLED=false` |
 
 Session keys written at login (BE-11): `admin_id` (int), `session_version` (int, must equal `admins.session_version`), `last_activity` (unix ts).
 Bumping `admins.session_version` (password change/reset) logs out all other sessions of that admin.

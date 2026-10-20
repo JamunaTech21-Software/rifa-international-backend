@@ -132,6 +132,7 @@ falls back to the same lists hardcoded in `src/data`.
 | `passport_copy` | ✅ if `passport_status=have_passport` | file: PDF/JPG/PNG, ≤ 5 MB | "Please upload your passport copy." / "Passport copy must be a PDF, JPG or PNG file." / "Passport copy must be 5 MB or smaller." |
 | `declaration` | ✅ | `1` / `true` | "Please confirm that the information is true and correct." |
 | `website` | — | honeypot: hidden input, must stay empty | — |
+| `captcha_token` | ✅ when captcha is on | Cloudflare Turnstile token (see *Captcha* below) | "Please complete the security check and try again." |
 
 Notes:
 - Empty optional fields may be omitted or sent as `""`.
@@ -203,6 +204,7 @@ JSON. Rate limit: 5 successful messages per IP per hour.
 | `subject` | ✅ | a `contact_subjects[].value` | "Please select a subject." / "Please select a valid subject." |
 | `message` | ✅ | 10–5000 chars | "Please write your message." / "Message must be 10–5000 characters." |
 | `website` | — | honeypot, must be empty | — |
+| `captcha_token` | ✅ when captcha is on | Cloudflare Turnstile token (see *Captcha* below) | "Please complete the security check and try again." |
 
 ```json
 {
@@ -220,6 +222,132 @@ JSON. Rate limit: 5 successful messages per IP per hour.
 ```json
 { "data": { "id": 42, "received_at": "2026-10-15T10:32:00+06:00" } }
 ```
+
+---
+
+### POST /applications/status (P5-04)
+
+Applicant status lookup for the public "Check your application" page. JSON body (POST, so the mobile number never
+appears in URLs or server logs). Also checks `captcha_token` when captcha is on.
+
+| Field | Required | Rule | Message |
+|---|---|---|---|
+| `reference_no` | ✅ | `RIFA-YYYYMMDD-NNNNN` (case and spaces ignored) | "Please enter your reference number." / "Enter the reference number from your confirmation, e.g. RIFA-20261015-00042." |
+| `mobile` | ✅ | the mobile used on the application; `+88`, spaces, dashes allowed | "Please enter your mobile number." / "Enter a valid Bangladeshi mobile number (01XXXXXXXXX)." |
+
+```json
+{ "reference_no": "RIFA-20261015-00042", "mobile": "01712345678" }
+```
+
+`200 OK` — no name or other personal data; internal admin notes are never included:
+
+```json
+{
+  "data": {
+    "reference_no": "RIFA-20261015-00042",
+    "job_category": "Construction",
+    "submitted_at": "2026-10-15T09:30:00+06:00",
+    "status": "shortlisted",
+    "status_label": "Shortlisted",
+    "status_updated_at": "2026-10-18T15:45:00+06:00",
+    "history": [
+      { "status": "received", "status_label": "Received", "changed_at": "2026-10-15T09:30:00+06:00" },
+      { "status": "under_review", "status_label": "Under Review", "changed_at": "2026-10-16T11:00:00+06:00" },
+      { "status": "shortlisted", "status_label": "Shortlisted", "changed_at": "2026-10-18T15:45:00+06:00" }
+    ]
+  }
+}
+```
+
+Statuses: `received, under_review, shortlisted, interview, medical, visa_processing, departed, on_hold, rejected`.
+
+| Error | When | Show |
+|---|---|---|
+| `404 not_found` | no live application with this reference **and** mobile (same answer for either being wrong) | `error.message` |
+| `429 rate_limited` | 10 unsuccessful lookups from one IP in 15 minutes, or 30 successful per hour | `error.message`; `Retry-After` header in seconds |
+
+---
+
+### GET /jobs (P5-02)
+
+Published job listings for the Home and Malaysia Jobs pages, in the admin's order. Cached 5 minutes
+(`Cache-Control: public, max-age=300`). Filtering by category/location/search stays in the browser (the list is small).
+
+```json
+{
+  "data": [
+    {
+      "id": 1,
+      "slug": "construction-worker",
+      "title": "Construction Worker",
+      "employer_type": "Construction Company",
+      "category": { "slug": "construction", "name": "Construction" },
+      "location": "Kuala Lumpur",
+      "salary_min": 1800,
+      "salary_max": 2200,
+      "currency": "MYR",
+      "description": null,
+      "image_public_id": "rifa/jobs/construction-worker-3fa2c1d9"
+    }
+  ]
+}
+```
+
+- Salaries are monthly. `description` is optional plain text (keep line breaks, no HTML).
+- `image_public_id` is a **public** Cloudinary image — use it with `cloudinaryUrl()`. `null` = no photo uploaded:
+  fall back to the local `job.<slug>` image, then the category image.
+- The 12 starting jobs are the same as `src/data/jobs.js` (same slugs), so the existing photos keep working.
+- Apply link: `/apply?category=<category.slug>` (as today).
+
+---
+
+### GET /news and GET /news/{slug} (P5-03)
+
+News & Updates for the News pages (and e.g. the latest 3 on Home). Cached 5 minutes. Only published posts whose
+date has been reached are returned, newest first.
+
+`GET /news?limit=3` (`limit` optional, 1–50) — list without the body:
+
+```json
+{
+  "data": [
+    {
+      "id": 1,
+      "slug": "new-job-openings-in-malaysia",
+      "title": "New Job Openings in Malaysia",
+      "published_on": "2026-10-12",
+      "excerpt": "Fresh opportunities are now open in construction, manufacturing and hospitality.",
+      "image_public_id": null
+    }
+  ]
+}
+```
+
+`GET /news/{slug}` — the same fields plus `body`, an array of plain-text paragraphs (render each as `<p>`, no HTML):
+
+```json
+{ "data": { "id": 1, "slug": "new-job-openings-in-malaysia", "…": "…", "body": ["First paragraph.", "Second paragraph."] } }
+```
+
+`404 not_found` for an unknown, draft or not-yet-published slug — show the normal Not Found page.
+The 3 starting posts are the same as `src/data/news.js` (same slugs). `image_public_id` `null` → keep the current
+local image as fallback.
+
+---
+
+## Captcha on Apply + Contact (P5-06)
+
+`POST /applications` and `POST /messages` check a [Cloudflare Turnstile](https://developers.cloudflare.com/turnstile/)
+token **when the backend has `CAPTCHA_ENABLED=true`** (off by default — switch it on only after the widget is live).
+
+- Render the widget on both forms with the site key from `VITE_TURNSTILE_SITE_KEY`.
+- Send its token as `captcha_token` (JSON or FormData). A FormData built from the `<form>` element also works:
+  the widget's hidden field `cf-turnstile-response` is accepted.
+- The check runs **before** form validation. Missing/invalid/expired token →
+  `422` with `fields.captcha_token` only; show the message near the widget and **reset the widget**
+  (a token can be used once), then let the visitor submit again.
+- Local/staging test keys: site key `1x00000000000000000000AA` (always passes) with backend secret
+  `1x0000000000000000000000000000000AA`. Site key `2x00000000000000000000AB` always fails — use it to test the error state.
 
 ---
 
@@ -372,6 +500,105 @@ Passport status, Status, Over 45, Possible duplicate. Trigger it with a normal l
 
 Rules (422 messages): "You cannot deactivate your own account." · "Use \"Change password\" to change your own password." ·
 "There must be at least one active super admin." Setting a password or deactivating a user logs them out everywhere.
+
+## Admin — job listings (P5-02)
+
+All need login + `X-CSRF-Token` on writes. Job objects are the public shape plus
+`is_published`, `sort_order`, `created_at`, `updated_at`.
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/admin/jobs` | all jobs incl. drafts; filters `?status=published\|draft`, `?category=<slug>`, `?q=` (title, employer type, location) |
+| GET | `/admin/jobs/{id}` | one job |
+| POST | `/admin/jobs` | JSON, see fields below → `201` |
+| PATCH | `/admin/jobs/{id}` | JSON, any subset of the fields; only sent fields change. The slug never changes. |
+| DELETE | `/admin/jobs/{id}` | **super admin only** (staff get 403 — they can unpublish instead) → `204`; the photo is deleted too |
+| POST | `/admin/jobs/{id}/image` | multipart, field `image`: JPG/PNG/WebP ≤ 5 MB; replaces the old photo → job |
+| DELETE | `/admin/jobs/{id}/image` | removes the photo → job |
+
+| Field | Required | Rule | Message |
+|---|---|---|---|
+| `title` | ✅ | 2–100 chars | "Please enter the job title." / "Job title must be 2–100 characters." |
+| `employer_type` | ✅ | 2–100 chars | "Please enter the employer type." / "Employer type must be 2–100 characters." |
+| `job_category` | ✅ | a `job_categories[].slug` from `/lookups` | "Please select a job category." / "Please select a valid job category." |
+| `location` | ✅ | 2–100 chars | "Please enter the location." / "Location must be 2–100 characters." |
+| `salary_min` | ✅ | whole number 0–100000 (RM / month) | "Please enter the minimum salary." / "Minimum salary must be a whole number from 0 to 100000." |
+| `salary_max` | ✅ | whole number 0–100000, ≥ `salary_min` | "Please enter the maximum salary." / "Maximum salary must be at least the minimum salary." |
+| `description` | — | ≤ 5000 chars; `""` clears it | "Description must be 5000 characters or fewer." |
+| `is_published` | — | boolean, default `true` | — |
+| `sort_order` | — | 0–9999, default: end of the list | "Order must be a whole number from 0 to 9999." |
+
+Photo errors (422 `fields.image`): "Please choose a photo." / "Photo must be a JPG, PNG or WebP image." /
+"Photo must be 5 MB or smaller." / "This file is not a valid image."
+
+---
+
+## Admin — News & Updates (P5-03)
+
+Same pattern as job listings: login + `X-CSRF-Token` on writes. Post objects are the article shape plus
+`body_text` (the raw text for the editor), `is_published`, `status` (`published` | `scheduled` | `draft`),
+`created_at`, `updated_at`.
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/admin/news` | all posts, newest first; filters `?status=published\|scheduled\|draft`, `?q=` (title, summary) |
+| GET | `/admin/news/{id}` | one post |
+| POST | `/admin/news` | JSON → `201` |
+| PATCH | `/admin/news/{id}` | JSON, any subset; only sent fields change; the slug never changes |
+| DELETE | `/admin/news/{id}` | **super admin only** → `204`; cover photo deleted too |
+| POST | `/admin/news/{id}/image` | multipart `image`: JPG/PNG/WebP ≤ 5 MB → post |
+| DELETE | `/admin/news/{id}/image` | remove the cover photo → post |
+
+| Field | Required | Rule | Message |
+|---|---|---|---|
+| `title` | ✅ | 5–150 chars | "Please enter the title." / "Title must be 5–150 characters." |
+| `excerpt` | ✅ | 10–300 chars (shown on cards) | "Please enter a short summary." / "Summary must be 10–300 characters." |
+| `body` | ✅ | 20–20000 chars, plain text; **a blank line starts a new paragraph** | "Please write the article." / "Article must be 20–20000 characters." |
+| `published_on` | — | `YYYY-MM-DD`, default today; a future date schedules the post | "Enter a valid date (YYYY-MM-DD)." |
+| `is_published` | — | boolean, default `true` (`false` = draft) | — |
+
+Photo errors are the same as for jobs.
+
+---
+
+## Admin — emails to applicants (P5-01, email only)
+
+From the application detail page. Any admin (staff or super admin). Replies from applicants go to the office inbox.
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/admin/applications/{id}/message-templates` | `{ can_email, templates: [{ key, label, subject, body }] }` — already filled with name, reference, category |
+| GET | `/admin/applications/{id}/messages` | message log, newest first |
+| POST | `/admin/applications/{id}/messages` | `{ template, subject, body }` → `201` with the logged message |
+
+Templates: `shortlisted`, `interview`, `medical`, `documents_required`, `custom`. Text in `[CAPITALS]` (e.g. `[DATE]`,
+`[PLACE]`, `[MEDICAL CENTRE]`) must be replaced by the admin — the API refuses to send while any is left
+(422: "Replace [DATE] with the real details before sending."). The email adds the admin's name as signature and the
+reference number. `can_email: false` → the applicant gave no email: disable sending ("Please call them instead.").
+
+Message object:
+
+```json
+{
+  "id": 7, "channel": "email", "template": "interview",
+  "subject": "Interview invitation — RIFA-20261015-00042",
+  "body": "Dear Md. Karim,\n\n…", "sent_to": "karim@example.com",
+  "delivery_status": "sent", "error": null,
+  "admin": { "id": 2, "name": "Nusrat Jahan" },
+  "sent_at": "2026-10-20T12:00:00+06:00", "created_at": "2026-10-20T12:00:00+06:00"
+}
+```
+
+`delivery_status: "failed"` (email server problem) is still `201` and logged — show the `error` and let the admin send again.
+
+| Field | Message |
+|---|---|
+| `template` | "Please choose a template." / "Please choose a valid template." |
+| `subject` (3–200) | "Please enter a subject." / "Subject must be 3–200 characters." |
+| `body` (10–5000) | "Please write the message." / "Message must be 10–5000 characters." |
+| `email` | "This applicant did not give an email address. Please call them instead." |
+
+---
 
 ## Admin endpoints (summary — remaining ones are detailed as they are built)
 

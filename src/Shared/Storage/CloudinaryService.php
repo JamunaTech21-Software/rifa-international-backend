@@ -13,8 +13,10 @@ use RuntimeException;
  * Applicant documents on Cloudinary with delivery type "authenticated":
  * they cannot be opened by URL guessing. Admins get a signed download link
  * from temporaryUrl() that expires after a few minutes.
+ *
+ * Website images (ImageStorage) use the normal public "upload" type.
  */
-final class CloudinaryService implements DocumentStorage
+final class CloudinaryService implements DocumentStorage, ImageStorage
 {
     private const TYPE = 'authenticated';
 
@@ -71,6 +73,40 @@ final class CloudinaryService implements DocumentStorage
         ]);
 
         return ['url' => $url, 'expires_at' => $expiresAt];
+    }
+
+    public function uploadPublicImage(string $localPath, string $folder, string $publicId): array
+    {
+        try {
+            $result = $this->client()->uploadApi()->upload($localPath, [
+                'folder' => trim($folder, '/'),
+                'public_id' => $publicId,
+                'type' => 'upload',
+                'resource_type' => 'image',
+                'overwrite' => false,
+                'unique_filename' => false,
+                'use_filename' => false,
+                'transformation' => [['width' => 1920, 'height' => 1920, 'crop' => 'limit']],
+            ]);
+        } catch (BadRequest $e) {
+            throw new InvalidDocumentException($e->getMessage(), 0, $e);
+        }
+
+        return [
+            'public_id' => (string) $result['public_id'],
+            'width' => (int) $result['width'],
+            'height' => (int) $result['height'],
+            'bytes' => (int) $result['bytes'],
+        ];
+    }
+
+    public function deletePublicImage(string $publicId): void
+    {
+        $this->client()->uploadApi()->destroy($publicId, [
+            'type' => 'upload',
+            'resource_type' => 'image',
+            'invalidate' => true,
+        ]);
     }
 
     private function client(): Cloudinary

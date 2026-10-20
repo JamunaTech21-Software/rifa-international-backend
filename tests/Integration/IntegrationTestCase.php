@@ -14,7 +14,9 @@ use App\Core\Session;
 use App\Shared\Clock;
 use App\Shared\Mail\Mailer;
 use App\Shared\Storage\DocumentStorage;
+use App\Shared\Storage\ImageStorage;
 use Tests\Support\FakeDocumentStorage;
+use Tests\Support\FakeImageStorage;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -32,6 +34,8 @@ abstract class IntegrationTestCase extends TestCase
 
     protected FakeDocumentStorage $storage;
 
+    protected FakeImageStorage $images;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -40,6 +44,8 @@ abstract class IntegrationTestCase extends TestCase
         $this->db = $this->app->container()->get(Database::class);
         $this->storage = new FakeDocumentStorage();
         $this->app->container()->instance(DocumentStorage::class, $this->storage);
+        $this->images = new FakeImageStorage();
+        $this->app->container()->instance(ImageStorage::class, $this->images);
 
         if (!self::$migrated) {
             $migrator = new Migrator($this->db, $basePath . '/database/migrations');

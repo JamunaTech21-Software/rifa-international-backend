@@ -33,6 +33,7 @@ final class Validator
         'jpg' => ['image/jpeg'],
         'jpeg' => ['image/jpeg'],
         'png' => ['image/png'],
+        'webp' => ['image/webp'],
     ];
 
     private const IMPLICIT = ['required', 'required_if', 'accepted'];

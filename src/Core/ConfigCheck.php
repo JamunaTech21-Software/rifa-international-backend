@@ -49,11 +49,20 @@ final class ConfigCheck
         if ((string) $config->get('database.password', '') === '') {
             $errors[] = 'DB_PASSWORD is empty.';
         }
+        if ($config->get('security.captcha.enabled') === true) {
+            $secret = (string) $config->get('security.captcha.secret', '');
+            if ($secret === '' || preg_match('/^[123]x0{30,}A{2}$/', $secret) === 1) {
+                $errors[] = 'TURNSTILE_SECRET_KEY must be the real secret key while CAPTCHA_ENABLED=true (empty or a Cloudflare test key).';
+            }
+        }
 
         if ($config->get('mail.driver') !== 'smtp') {
             $warnings[] = 'MAIL_DRIVER is not "smtp" — emails are only written to storage/logs/mail.';
         } elseif ((string) $config->get('mail.host', '') === '') {
             $warnings[] = 'MAIL_HOST is empty — emails will fail (submissions still work).';
+        }
+        if ($config->get('security.captcha.enabled') !== true) {
+            $warnings[] = 'CAPTCHA_ENABLED is false — the Apply and Contact forms have no bot check (rate limits only).';
         }
         if ($config->get('app.log_level') === 'debug') {
             $warnings[] = 'LOG_LEVEL=debug writes a lot of logs; use info or warning.';

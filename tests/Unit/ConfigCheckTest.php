@@ -22,7 +22,11 @@ final class ConfigCheckTest extends TestCase
     {
         $config = [
             'app' => ['env' => 'production', 'debug' => false, 'url' => 'https://rifaint.com', 'admin_url' => 'https://admin.rifaint.com', 'log_level' => 'info'],
-            'security' => ['session' => ['secure' => true], 'proxy' => ['secret' => str_repeat('a', 64)]],
+            'security' => [
+                'session' => ['secure' => true],
+                'proxy' => ['secret' => str_repeat('a', 64)],
+                'captcha' => ['enabled' => true, 'secret' => '0x4AAAAAAA-real-secret'],
+            ],
             'cloudinary' => ['cloud_name' => 'c', 'api_key' => 'k', 'api_secret' => 's'],
             'database' => ['password' => 'secret'],
             'mail' => ['driver' => 'smtp', 'host' => 'smtp.gmail.com'],
@@ -42,7 +46,7 @@ final class ConfigCheckTest extends TestCase
     {
         $result = ConfigCheck::run(new Config($this->production([
             'app' => ['debug' => true, 'url' => 'http://rifaint.com', 'log_level' => 'debug'],
-            'security' => ['session' => ['secure' => false], 'proxy' => ['secret' => 'short']],
+            'security' => ['session' => ['secure' => false], 'proxy' => ['secret' => 'short'], 'captcha' => ['enabled' => false]],
             'cloudinary' => ['api_secret' => ''],
             'database' => ['password' => ''],
             'mail' => ['driver' => 'log'],
@@ -55,7 +59,18 @@ final class ConfigCheckTest extends TestCase
         $this->assertStringContainsString('APP_URL', $result['errors'][3]);
         $this->assertStringContainsString('CLOUDINARY_API_SECRET', $result['errors'][4]);
         $this->assertStringContainsString('DB_PASSWORD', $result['errors'][5]);
-        $this->assertCount(2, $result['warnings']);
+        $this->assertCount(3, $result['warnings']);
+        $this->assertStringContainsString('CAPTCHA_ENABLED', $result['warnings'][1]);
+    }
+
+    public function test_enabled_captcha_needs_the_real_secret(): void
+    {
+        foreach (['', '1x0000000000000000000000000000000AA', '2x0000000000000000000000000000000AA'] as $secret) {
+            $errors = ConfigCheck::run(new Config($this->production(['security' => ['captcha' => ['secret' => $secret]]])))['errors'];
+
+            $this->assertCount(1, $errors, $secret);
+            $this->assertStringContainsString('TURNSTILE_SECRET_KEY', $errors[0]);
+        }
     }
 
     public function test_misconfigured_app_answers_503_without_details_and_sends_hsts(): void
